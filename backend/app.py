@@ -10,9 +10,13 @@ from flask_cors import CORS
 import joblib
 import firebase_admin
 from firebase_admin import credentials, firestore
+from google.auth.transport.requests import Request
+from google_auth_oauthlib.flow import Flow
+
+os.environ['OAUTHLIB_INSECURE_TRANSPORT'] = '1'
+os.environ['OAUTHLIB_RELAX_TOKEN_SCOPE'] = '1'
 
 try:
-    from google_auth_oauthlib.flow import Flow
     from googleapiclient.discovery import build
     from google.oauth2.credentials import Credentials
 except ImportError:
@@ -83,7 +87,7 @@ if os.path.exists(FIREBASE_KEY_PATH):
 else:
     logger.warning(f"Firebase Service Account Key not found at '{FIREBASE_KEY_PATH}'. Data will NOT be pushed to Cloud Firestore.")
 
-def log_threat_to_firebase(prediction_data, scan_type="url"):
+def log_threat_to_firebase(prediction_data, scan_type="url", user_email=None):
     """Pushes a scanned threat to Firebase Firestore if configured."""
     if db is None:
         return
@@ -97,12 +101,24 @@ def log_threat_to_firebase(prediction_data, scan_type="url"):
             "risk_score": prediction_data.get("risk_score", 0),
             "confidence": prediction_data.get("confidence", 0),
             "heuristics": prediction_data.get("explanation", []),
-            "timestamp": firestore.SERVER_TIMESTAMP
+            "timestamp": firestore.SERVER_TIMESTAMP,
+            "user_email": user_email
         }
         db.collection("threats").add(threat_doc)
-        logger.info(f"Logged {prediction_data['prediction']} threat to Firebase.")
+        logger.info(f"Logged {prediction_data['prediction']} threat to Firebase for user: {user_email}.")
     except Exception as e:
         logger.error(f"Failed to log threat to Firebase: {str(e)}")
+
+def normalize_user_email(email):
+    """Returns a canonical email string or None if the client did not send one."""
+    if not isinstance(email, str):
+        return None
+
+    email = email.strip().lower()
+    if not email or "@" not in email:
+        return None
+
+    return email
 
 def check_domain_age(domain):
     """Fetches domain registration date using free RDAP and returns age in days."""
@@ -288,7 +304,9 @@ def predict_url():
         firebase_log_data = response_data.copy()
         firebase_log_data["subject"] = "Scanned URL"
         firebase_log_data["snippet"] = url
-        log_threat_to_firebase(firebase_log_data, scan_type="url")
+        email = normalize_user_email(data.get("email"))
+        response_data["user_email"] = email
+        log_threat_to_firebase(firebase_log_data, scan_type="url", user_email=email)
         
         return jsonify(response_data)
     except Exception as e:
@@ -358,7 +376,9 @@ def predict_email():
         firebase_log_data = response_data.copy()
         firebase_log_data["subject"] = "Scanned Email Content"
         firebase_log_data["snippet"] = text[:150] + ("..." if len(text) > 150 else "")
-        log_threat_to_firebase(firebase_log_data, scan_type="email")
+        email = normalize_user_email(data.get("email"))
+        response_data["user_email"] = email
+        log_threat_to_firebase(firebase_log_data, scan_type="email", user_email=email)
         
         return jsonify(response_data)
     except Exception as e:
@@ -440,92 +460,59 @@ def auth_callback():
     )
     flow.fetch_token(authorization_response=request.url)
     credentials = flow.credentials
-    session['credentials'] = {
-        'token': credentials.token,
-        'refresh_token': credentials.refresh_token,
-        'token_uri': credentials.token_uri,
-        'client_id': credentials.client_id,
-        'client_secret': credentials.client_secret,
-        'scopes': credentials.scopes
-    }
-    return redirect(url_for('dashboard'))
-
-@app.route('/dashboard')
-def dashboard():
-    # If testing without GCP credentials, user can pass ?mock=true
-    if request.args.get('mock') == 'true':
-        mock_html = """
-        <html><head><title>KALKI Dashboard</title><style>body{background:#0a0f1e;color:white;font-family:sans-serif;padding:20px;max-width:800px;margin:auto;} .card {border:1px solid #333; padding:15px; margin-bottom:15px; border-radius:8px; background:#111a33;}</style></head>
-        <body><h1>🛡️ Inbox Security Scanner (Demo Mode)</h1>
-        <div class="card" style="border-color:#ff0055;">
-          <h3 style="margin:0; color:#ff0055;">PHISHING DETECTED</h3>
-          <p><strong>Subject:</strong> URGENT: Your PayPal account is suspended</p>
-          <p><strong>Snippet:</strong> Dear user, click here immediately to verify your account or it will be locked...</p>
-          <ul>
-            <li><span style="background:#ff0055;color:white;padding:2px 5px;border-radius:3px;font-size:10px;">HIGH</span> <strong>Urgency:</strong> Prompts: urgent, immediately, suspended, verify your account</li>
-            <li><span style="background:#ffaa00;color:white;padding:2px 5px;border-radius:3px;font-size:10px;">MEDIUM</span> <strong>Financial:</strong> Transaction terms: paypal, account</li>
-          </ul>
-        </div>
-        <div class="card" style="border-color:#00ffcc;">
-          <h3 style="margin:0; color:#00ffcc;">SAFE</h3>
-          <p><strong>Subject:</strong> Team Lunch tomorrow!</p>
-          <p><strong>Snippet:</strong> Hey team, we're grabbing pizza tomorrow at 12. Let me know if you can make it.</p>
-          <ul>
-            <li><span style="background:#8892b0;color:white;padding:2px 5px;border-radius:3px;font-size:10px;">LOW</span> <strong>Language:</strong> No obvious phishing traps detected</li>
-          </ul>
-        </div>
-        </body></html>
-        """
-        return mock_html
-
-    creds_dict = session.get('credentials')
-    if not creds_dict:
-        return """
-        <html><head><title>KALKI Dashboard</title><style>body{background:#0a0f1e;color:white;font-family:sans-serif;text-align:center;padding:50px;}</style></head>
-        <body>
-        <h1>KALKI Security Dashboard</h1>
-        <p>Connect your Google Account to scan your recent inbox for threats.</p>
-        <br>
-        <a href="/auth/google" style="padding:12px 24px;background:#00ffcc;color:black;text-decoration:none;font-weight:bold;border-radius:5px;box-shadow:0 0 10px rgba(0,255,204,0.5);">Connect Google Account</a>
-        </body></html>
-        """
-        
+    
+    # Get the real email from Google profile
+    user_email = None
     try:
-        credentials = Credentials(**creds_dict)
+        people_service = build('oauth2', 'v2', credentials=credentials)
+        user_info = people_service.userinfo().get().execute()
+        user_email = user_info.get('email')
+        user_name = user_info.get('name', user_email)
+        user_picture = user_info.get('picture', '')
+        
+        # Save connected account to Firebase 'accounts' collection
+        if db and user_email:
+            db.collection('accounts').document(user_email).set({
+                'email': user_email,
+                'name': user_name,
+                'picture': user_picture,
+                'status': 'Monitoring Active',
+                'connected_at': firestore.SERVER_TIMESTAMP
+            })
+            logger.info(f"Saved account {user_email} to Firebase.")
+    except Exception as e:
+        logger.error(f"Error fetching user profile: {e}")
+
+    # Immediately fetch emails, scan them, and push to Firebase
+    try:
         service = build('gmail', 'v1', credentials=credentials)
         results = service.users().messages().list(userId='me', maxResults=5).execute()
         messages = results.get('messages', [])
         
-        dashboard_html = "<html><head><title>KALKI Dashboard</title><style>body{background:#0a0f1e;color:white;font-family:sans-serif;padding:20px;max-width:800px;margin:auto;} .card {border:1px solid #333; padding:15px; margin-bottom:15px; border-radius:8px; background:#111a33;}</style></head><body><h1>🛡️ Recent Inbox Security Scan</h1>"
-        
-        if not messages:
-            dashboard_html += "<p>No messages found in your inbox.</p>"
-        else:
-            for msg in messages:
-                msg_id = msg['id']
-                message_data = service.users().messages().get(userId='me', id=msg_id, format='full').execute()
-                snippet = message_data.get('snippet', '')
-                
-                # Run through our email heuristics
-                explanation = analyze_email_heuristics(snippet)
-                high_risk = sum(1 for e in explanation if e.get("weight") in ["high", "medium"])
-                
-                color = "#ff0055" if high_risk > 0 else "#00ffcc"
-                status = "PHISHING DETECTED" if high_risk > 0 else "SAFE"
-                
-                dashboard_html += f"<div class='card' style='border-color:{color};'>"
-                dashboard_html += f"<h3 style='margin:0; color:{color};'>{status}</h3>"
-                dashboard_html += f"<p><strong>Snippet:</strong> {snippet}</p>"
-                dashboard_html += "<ul>"
-                for ex in explanation:
-                    badge_col = "#ff0055" if ex['weight']=='high' else ("#ffaa00" if ex['weight']=='medium' else "#8892b0")
-                    dashboard_html += f"<li><span style='background:{badge_col};color:white;padding:2px 5px;border-radius:3px;font-size:10px;text-transform:uppercase;'>{ex['weight']}</span> <strong>{ex['factor']}:</strong> {ex['value']}</li>"
-                dashboard_html += "</ul></div>"
-                
-        dashboard_html += "</body></html>"
-        return dashboard_html
+        for msg in messages:
+            msg_id = msg['id']
+            message_data = service.users().messages().get(userId='me', id=msg_id, format='full').execute()
+            snippet = message_data.get('snippet', '')
+            
+            explanation = analyze_email_heuristics(snippet)
+            high_risk = sum(1 for e in explanation if e.get("weight") in ["high", "medium"])
+            
+            firebase_log_data = {
+                "subject": f"Gmail Inbox Scan ({user_email or 'Unknown'})",
+                "snippet": snippet[:150] + ("..." if len(snippet) > 150 else ""),
+                "prediction": "PHISHING" if high_risk > 0 else "SAFE",
+                "risk_score": 95.0 if high_risk > 0 else 5.0,
+                "confidence": 99.0,
+                "explanation": explanation
+            }
+            log_threat_to_firebase(firebase_log_data, scan_type="email", user_email=user_email)
+            
+        logger.info("Successfully scanned Gmail inbox and pushed to Firebase.")
     except Exception as e:
-        return f"Error connecting to Google API: {str(e)}", 500
+        logger.error(f"Error fetching Gmail: {e}")
+
+    # Redirect back to the stunning glassmorphism frontend
+    return redirect("https://snehsaathi-hackathon.web.app/dashboard.html")
 
 if __name__ == "__main__":
     app.run(host="127.0.0.1", port=5000, debug=True)
