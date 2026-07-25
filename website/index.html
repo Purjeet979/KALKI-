@@ -4,12 +4,29 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>KALKI | Think Before You Click</title>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Space+Grotesk:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="style.css">
+    <script>
+        const savedTheme = localStorage.getItem("kalkiTheme") || "dark";
+        document.documentElement.setAttribute("data-theme", savedTheme);
+    </script>
 </head>
 <body>
     <!-- Cyber Grid Background -->
     <div class="cyber-grid"></div>
+
+    <!-- Cyber Background Decorations -->
+    <div class="cyber-bg-decorations">
+        <div class="decor-circle circle-1"></div>
+        <div class="decor-circle circle-2"></div>
+        <div class="decor-circle circle-3"></div>
+        <div class="decor-shield">
+            <svg viewBox="0 0 24 24"><path d="M12 2L4 5v6.09c0 5.05 3.41 9.76 8 10.91 4.59-1.15 8-5.86 8-10.91V5l-8-3zm0 2.18c3.55.93 6 4.19 6 7.91 0 3.73-2.45 6.98-6 7.91-3.55-.93-6-4.19-6-7.91 0-3.72 2.45-6.98 6-7.91z"/></svg>
+        </div>
+        <div class="binary-stream stream-1">01101001 01101110 01110011 01100101 01100011 01110101 01110010 01100101</div>
+        <div class="binary-stream stream-2">SHIELD SECURE CORE ACTIVE</div>
+        <div class="binary-stream stream-3">DETECTION_ENGINE: ONLINE</div>
+    </div>
 
     <!-- Navigation -->
     <nav class="navbar">
@@ -20,8 +37,13 @@
             <span class="logo-text">KALKI</span>
         </div>
         <div class="nav-links">
+            <button id="theme-toggle" class="theme-toggle-btn" aria-label="Toggle theme" style="background: var(--glass-bg); border: 1px solid rgba(255,255,255,0.15); color: var(--text-main); padding: 10px; border-radius: 50%; cursor: pointer; display: flex; align-items: center; justify-content: center; width: 38px; height: 38px; outline: none; transition: 0.3s;">
+                <svg id="theme-icon-sun" viewBox="0 0 24 24" width="16" height="16" fill="currentColor" style="display:none;"><path d="M12 7c-2.76 0-5 2.24-5 5s2.24 5 5 5 5-2.24 5-5-2.24-5-5-5zM2 13h2c.55 0 1-.45 1-1s-.45-1-1-1H2c-.55 0-1 .45-1 1s.45 1 1 1zm18 0h2c.55 0 1-.45 1-1s-.45-1-1-1h-2c-.55 0-1 .45-1 1s.45 1 1 1zM11 2v2c0 .55.45 1 1 1s1-.45 1-1V2c0-.55-.45-1-1-1s-1 .45-1 1zm0 18v2c0 .55.45 1 1 1s1-.45 1-1v-2c0-.55-.45-1-1-1s-1 .45-1 1zM5.99 4.58c-.39-.39-1.03-.39-1.41 0s-.39 1.03 0 1.41l1.06 1.06c.39.39 1.03.39 1.41 0s.39-1.03 0-1.41L5.99 4.58zm12.37 12.37c-.39-.39-1.03-.39-1.41 0s-.39 1.03 0 1.41l1.06 1.06c.39.39 1.03.39 1.41 0s.39-1.03 0-1.41l-1.06-1.06zm1.06-10.96c.39-.39.39-1.03 0-1.41s-1.03-.39-1.41 0l-1.06 1.06c-.39.39-.39 1.03 0 1.41s1.03.39 1.41 0l1.06-1.06zM7.05 18.01c.39-.39.39-1.03 0-1.41s-1.03-.39-1.41 0l-1.06 1.06c-.39.39-.39 1.03 0 1.41s1.03.39 1.41 0l1.06-1.06z"/></svg>
+                <svg id="theme-icon-moon" viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M12.3 22h-.1c-5.5 0-10-4.5-10-10 0-4.8 3.5-9 8.3-9.9.5-.1 1 .3.9.8-.1.4-.2.8-.2 1.2 0 4.4 3.6 8 8 8 .4 0 .8 0 1.2-.1.5-.1.9.4.8.9-.9 4.8-5.1 8.1-9.9 8.1zm-4-17.7C5.3 5.4 3.7 8.5 3.7 12c0 4.6 3.7 8.3 8.3 8.3 3.5 0 6.6-2.2 7.7-5.4-1-.1-2-.3-2.9-.8-3.9-2.1-6.1-6.1-5.7-10.5-.3.2-.6.5-.8.7z"/></svg>
+            </button>
             <a href="index.html#features">Features</a>
             <a href="index.html#how-it-works">How it Works</a>
+            <a href="index.html#installation-guide">Setup Guide</a>
             <a href="login.html" class="nav-btn" style="border: 1px solid rgba(255,255,255,0.2); background: rgba(255,255,255,0.05);">Login / Dashboard</a>
             <a href="kalki-extension.zip" download class="nav-btn glow-btn">Download Free</a>
         </div>
@@ -129,6 +151,49 @@
                 <div class="step-number">03</div>
                 <h3>Get Alerted</h3>
                 <p>If a threat is detected, KALKI instantly flashes a warning and injects a detailed threat report widget.</p>
+            </div>
+        </div>
+    </section>
+
+    <!-- Setup Guide Section -->
+    <section class="installation-guide" id="installation-guide" style="padding: 100px 5% 60px; max-width: 1200px; margin: 0 auto;">
+        <div class="section-heading reveal" style="text-align: center; margin-bottom: 60px;">
+            <h2>Quick Installation Guide</h2>
+            <p>Deploy KALKI in your Chrome browser in 5 simple steps.</p>
+        </div>
+        
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 30px;">
+            <div class="feature-card glass reveal" style="padding: 30px; border-radius: 16px; position: relative;">
+                <div style="font-size: 12px; font-weight: 800; color: var(--neon-blue); letter-spacing: 2px; text-transform: uppercase; margin-bottom: 10px;">Step 01</div>
+                <h3 style="margin-top: 0;">Download & Extract</h3>
+                <p>Click "Download Free" to download <code>kalki-extension.zip</code>. Right-click and extract the ZIP file to a folder on your computer.</p>
+            </div>
+            
+            <div class="feature-card glass reveal" style="padding: 30px; border-radius: 16px;">
+                <div style="font-size: 12px; font-weight: 800; color: var(--neon-pink); letter-spacing: 2px; text-transform: uppercase; margin-bottom: 10px;">Step 02</div>
+                <h3 style="margin-top: 0;">Open Extensions Page</h3>
+                <p>Open Google Chrome and type <code>chrome://extensions/</code> in the URL bar, or navigate to Chrome Menu &rarr; Extensions &rarr; Manage Extensions.</p>
+            </div>
+            
+            <div class="feature-card glass reveal" style="padding: 30px; border-radius: 16px;">
+                <div style="font-size: 12px; font-weight: 800; color: var(--neon-green); letter-spacing: 2px; text-transform: uppercase; margin-bottom: 10px;">Step 03</div>
+                <h3 style="margin-top: 0;">Enable Developer Mode</h3>
+                <p>In the top-right corner of the Extensions page, toggle the <strong>Developer mode</strong> switch to <strong>ON</strong>.</p>
+            </div>
+            
+            <div class="feature-card glass reveal" style="padding: 30px; border-radius: 16px;">
+                <div style="font-size: 12px; font-weight: 800; color: var(--neon-purple); letter-spacing: 2px; text-transform: uppercase; margin-bottom: 10px;">Step 04</div>
+                <h3 style="margin-top: 0;">Load Unpacked</h3>
+                <p>Click the <strong>"Load unpacked"</strong> button in the top-left corner, and select the extracted folder (ensure it contains <code>manifest.json</code>).</p>
+            </div>
+            
+            <div class="feature-card glass reveal" style="padding: 30px; border-radius: 16px; grid-column: 1 / -1; display: flex; align-items: center; justify-content: space-between; gap: 30px; border-color: rgba(0, 255, 204, 0.3);">
+                <div>
+                    <div style="font-size: 12px; font-weight: 800; color: var(--neon-green); letter-spacing: 2px; text-transform: uppercase; margin-bottom: 10px;">Step 05</div>
+                    <h3 style="margin-top: 0; margin-bottom: 8px;">Pin & Start Protecting!</h3>
+                    <p style="margin: 0;">KALKI is now active. Click the puzzle icon in your Chrome bar, pin KALKI, and connect your Gmail account from the dashboard to start scanning.</p>
+                </div>
+                <a href="login.html" class="nav-btn" style="border: 1px solid rgba(0,255,204,0.5); background: rgba(0,255,204,0.1); color: #00ffcc; text-decoration: none; padding: 12px 24px; border-radius: 8px; font-weight: bold; flex-shrink: 0;">Go to Dashboard</a>
             </div>
         </div>
     </section>
