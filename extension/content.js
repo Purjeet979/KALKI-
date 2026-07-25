@@ -6,6 +6,20 @@
 // Global root element for the widget
 let widgetRoot = null;
 
+function normalizeEmail(email) {
+  return (email || "").trim().toLowerCase();
+}
+
+function syncEmailToBackground(email, sourceLabel = "page") {
+  const normalizedEmail = normalizeEmail(email);
+  if (!normalizedEmail || !normalizedEmail.includes("@")) return false;
+
+  chrome.runtime.sendMessage({ action: "sync_accounts", email: normalizedEmail });
+  document.body.setAttribute("data-kalki-synced", normalizedEmail);
+  console.log(`KALKI: Synced email from ${sourceLabel}:`, normalizedEmail);
+  return true;
+}
+
 // Initialize content script
 function init() {
   // Inject extension detection marker for the website frontend
@@ -21,6 +35,16 @@ function init() {
     }
   });
 }
+
+window.addEventListener("message", (event) => {
+  if (event.source !== window) return;
+  if (event.origin !== window.location.origin) return;
+
+  const data = event.data || {};
+  if (data.type === "KALKI_SYNC_ACCOUNTS") {
+    syncEmailToBackground(data.email, "dashboard message");
+  }
+});
 
 // Listen for incoming messages from background script
 chrome.runtime.onMessage.addListener((message) => {
@@ -373,6 +397,12 @@ function renderWidgetDOM(scanResult) {
   applyCredentialGuard(isPhishing);
 }
 
+function formatDate(timestamp) {
+  if (!timestamp) return "";
+  const date = new Date(timestamp);
+  return date.toLocaleString();
+}
+
 /**
  * Safely removes the widget from DOM.
  */
@@ -398,9 +428,58 @@ function applyCredentialGuard(isPhishing) {
   });
 }
 
+function syncAccountsToExtension() {
+  const targetNode = document.getElementById("account-list");
+
+  const getEmailFromDOM = () => {
+    const pageProfileEmail = normalizeEmail(document.body.getAttribute("data-kalki-account-email"));
+    if (pageProfileEmail && pageProfileEmail.includes("@")) {
+      return pageProfileEmail;
+    }
+
+    if (!targetNode) return null;
+
+    const activeItem = targetNode.querySelector(".account-item.active-filter[data-email]");
+    const activeEmail = activeItem ? normalizeEmail(activeItem.getAttribute("data-email")) : "";
+    if (activeEmail && activeEmail !== "all" && activeEmail.includes("@")) {
+      return activeEmail;
+    }
+
+    const accountItems = targetNode.querySelectorAll(".account-item[data-email]");
+    for (let item of accountItems) {
+      const email = normalizeEmail(item.getAttribute("data-email"));
+      if (email && email !== "all" && email.includes("@")) {
+        return email;
+      }
+    }
+    return null;
+  };
+
+  const syncCurrentEmail = (sourceLabel) => {
+    const email = getEmailFromDOM();
+    if (email) {
+      syncEmailToBackground(email, sourceLabel);
+    }
+  };
+
+  syncCurrentEmail("DOM initial");
+
+  if (!targetNode) return;
+
+  const observer = new MutationObserver(() => {
+    syncCurrentEmail("DOM");
+  });
+
+  observer.observe(targetNode, { childList: true, subtree: true });
+}
+
 // Kick off initialization
 if (document.readyState === "complete" || document.readyState === "interactive") {
   init();
+  syncAccountsToExtension();
 } else {
-  document.addEventListener("DOMContentLoaded", init);
+  document.addEventListener("DOMContentLoaded", () => {
+    init();
+    syncAccountsToExtension();
+  });
 }
