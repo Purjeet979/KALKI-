@@ -38,7 +38,8 @@ KALKI is a professional-grade, AI-powered cybersecurity suite designed to interc
 - 🕵️ **Advanced Heuristics Engine**: Evaluates domain age (via RDAP), subdomain nesting, IP-as-host, special character density, and urgency syntax in emails. 
 - 🌐 **Real-Time Global Threat Feed**: Scans from the Chrome extension are instantly beamed to Cloud Firestore via the Python backend and pushed live to the web dashboard using WebSockets.
 - 🛑 **Pre-Submit Credential Guard**: Actively blocks users from submitting forms on known phishing sites before the data is transmitted.
-- 📊 **Unified Security Dashboard**: A sleek, dark-mode, neon-styled web interface built with vanilla HTML/JS/CSS that monitors your connected accounts and renders live threat telemetry.
+- 📧 **Multi-Gmail Security Dashboard (OAuth)**: Securely link multiple Google Accounts via OAuth to a unified command center. The dashboard automatically monitors recent inboxes across all connected accounts, feeding them through the ML threat analyzer to create a centralized, real-time threat feed.
+- 📊 **Live Telemetry Interface**: A sleek, dark-mode, neon-styled web UI that monitors your connected accounts, rendering real-time threat scores, colored heuristic badges, and active scan feeds.
 
 ---
 
