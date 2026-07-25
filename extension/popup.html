@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>KALKI Security Dashboard</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <!-- Space/Cyber Grid Background -->
+  <div class="cyber-grid"></div>
+
+  <div class="app-container">
+    <!-- Header Section -->
+    <header class="app-header">
+      <div class="brand">
+        <svg class="brand-logo" viewBox="0 0 24 24">
+          <path d="M12 2L4 5v6.09c0 5.05 3.41 9.76 8 10.91 4.59-1.15 8-5.86 8-10.91V5l-8-3zm0 2.18c3.55.93 6 4.19 6 7.91 0 3.73-2.45 6.98-6 7.91-3.55-.93-6-4.19-6-7.91 0-3.72 2.45-6.98 6-7.91zm-1.5 5.5v5.5h3v-5.5h-3z"/>
+        </svg>
+        <div class="brand-text">
+          <h1>KALKI</h1>
+          <span class="tagline">Think Before You Click.</span>
+        </div>
+      </div>
+      <button id="btn-settings" class="icon-btn" title="Settings">
+        <svg viewBox="0 0 24 24" width="20" height="20">
+          <path fill="currentColor" d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/>
+        </svg>
+      </button>
+    </header>
+
+    <!-- Tab Navigation -->
+    <nav class="tab-navigation">
+      <button class="tab-btn active" data-tab="tab-dashboard">Dashboard</button>
+      <button class="tab-btn" data-tab="tab-scanner">Scanners</button>
+      <button class="tab-btn" data-tab="tab-history">Logs</button>
+    </nav>
+
+    <!-- Content Sections -->
+    <main class="app-body">
+      
+      <!-- TAB 1: DASHBOARD -->
+      <section id="tab-dashboard" class="tab-content active">
+        <div class="status-card glass">
+          <div class="card-glow" id="status-glow"></div>
+          
+          <div class="status-header">
+            <span class="section-title">ACTIVE SITE SCANNER</span>
+            <div class="status-badge-container">
+              <span id="site-status" class="status-chip loading">SCANNING...</span>
+            </div>
+          </div>
+          
+          <div class="site-info">
+            <span class="label">Current Site</span>
+            <div id="site-domain" class="domain-text">Resolving domain...</div>
+            <div id="site-url" class="url-text" title="Resolving path...">Waiting for tab context...</div>
+          </div>
+
+          <div class="metrics-grid">
+            <!-- Circular Risk Meter -->
+            <div class="metric-gauge">
+              <svg class="risk-gauge" viewBox="0 0 100 100">
+                <circle class="gauge-bg" cx="50" cy="50" r="40" />
+                <circle class="gauge-fill" id="gauge-fill" cx="50" cy="50" r="40" />
+                <text class="gauge-text" id="gauge-text" x="50" y="52">0</text>
+                <text class="gauge-label" x="50" y="68">THREAT</text>
+              </svg>
+            </div>
+            
+            <!-- Statistics Details -->
+            <div class="metric-stats">
+              <div class="stat-box">
+                <span class="label">ML Confidence</span>
+                <div class="stat-value" id="site-confidence">0.0%</div>
+                <div class="progress-bar-bg">
+                  <div class="progress-bar-fill" id="confidence-bar"></div>
+                </div>
+              </div>
+              <div class="stat-box">
+                <span class="label">Verdict Severity</span>
+                <div class="stat-value font-neon" id="site-severity">---</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Heuristics Explanations -->
+          <div class="threat-reasons-container" id="threat-reasons-box">
+            <span class="label">Security Telemetry Insights</span>
+            <ul class="reasons-list" id="site-reasons">
+              <li class="loading-skeleton"></li>
+              <li class="loading-skeleton"></li>
+            </ul>
+          </div>
+        </div>
+      </section>
+
+      <!-- TAB 2: MANUAL SCANNER -->
+      <section id="tab-scanner" class="tab-content">
+        <!-- Sub-tabs for URL and Email manual scanning -->
+        <div class="scanner-toggle">
+          <button class="scanner-tab active" id="btn-scan-url-view">URL Scanner</button>
+          <button class="scanner-tab" id="btn-scan-email-view">Email Scanner</button>
+        </div>
+
+        <!-- URL Scanner Frame -->
+        <div id="manual-url-frame" class="scanner-frame active">
+          <div class="glass card-container">
+            <h3>Link Analysis</h3>
+            <p class="section-desc">Verify suspicious links from WhatsApp, Telegram, or SMS before visiting them.</p>
+            
+            <div class="input-group">
+              <input type="text" id="manual-url-input" placeholder="Paste URL link here (e.g. https://...)" autocomplete="off">
+            </div>
+            
+            <button id="btn-scan-url" class="glow-btn">
+              <span>SCAN LINK</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Email Scanner Frame -->
+        <div id="manual-email-frame" class="scanner-frame">
+          <div class="glass card-container">
+            <h3>Email Telemetry</h3>
+            <p class="section-desc">Paste the raw email text body to check for phishing triggers or urgency baiting.</p>
+            
+            <div class="input-group">
+              <textarea id="manual-email-input" placeholder="Paste raw email content here..." rows="6"></textarea>
+            </div>
+            
+            <button id="btn-scan-email" class="glow-btn">
+              <span>SCAN EMAIL TEXT</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Scan Result Drawer (Shows when manual scan completes) -->
+        <div id="manual-result-card" class="result-card glass">
+          <div class="result-header">
+            <h4>SCAN REPORT</h4>
+            <button id="btn-close-result" class="close-btn">&times;</button>
+          </div>
+          <div class="result-body">
+            <div class="result-badge-row">
+              <span id="manual-result-prediction" class="status-chip">SAFE</span>
+              <div class="result-risk-meta">
+                <span class="label">Threat Score</span>
+                <span id="manual-result-score" class="font-neon">0</span>
+              </div>
+            </div>
+            
+            <div class="stat-box" style="margin-top: 10px;">
+              <span class="label">Analysis Confidence</span>
+              <div class="stat-value" id="manual-result-confidence">0.0%</div>
+              <div class="progress-bar-bg">
+                <div class="progress-bar-fill" id="manual-confidence-bar"></div>
+              </div>
+            </div>
+
+            <div class="threat-reasons-container" style="margin-top: 12px;">
+              <span class="label">Identified Markers</span>
+              <ul class="reasons-list" id="manual-result-reasons">
+                <li>No active indicators.</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- TAB 3: SCAN HISTORY LOGS -->
+      <section id="tab-history" class="tab-content">
+        <div class="glass card-container history-card">
+          <div class="history-header">
+            <span class="section-title">RECENT THREAT LOGS</span>
+            <button id="btn-clear-history-quick" class="link-btn">Clear Logs</button>
+          </div>
+          
+          <div class="history-list-wrapper">
+            <ul class="history-list" id="history-list-container">
+              <!-- Dynamically populated -->
+              <li class="empty-history">No recent scans recorded.</li>
+            </ul>
+          </div>
+        </div>
+      </section>
+
+    </main>
+
+    <!-- Footer -->
+    <footer class="app-footer">
+      <span>KALKI v1.0.0 • Powered by AI</span>
+    </footer>
+  </div>
+
+  <!-- Shared scripts -->
+  <script src="utils.js"></script>
+  <script src="popup.js"></script>
+</body>
+</html>

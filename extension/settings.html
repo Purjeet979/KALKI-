@@ -1,0 +1,391 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>KALKI Security Configurations</title>
+  <link rel="stylesheet" href="popup.css">
+  <style>
+    /* Styling extension specifically for the full-page configurations console */
+    body {
+      width: 100%;
+      height: 100vh;
+      overflow-y: auto;
+      background: var(--bg-dark);
+      padding: 0;
+      margin: 0;
+    }
+
+    .config-wrapper {
+      max-width: 900px;
+      margin: 40px auto;
+      padding: 0 20px;
+    }
+
+    .settings-header {
+      margin-bottom: 30px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 1px solid var(--border-cyan);
+      padding-bottom: 20px;
+    }
+
+    .settings-brand h1 {
+      font-size: 26px;
+      font-weight: 900;
+      letter-spacing: 2px;
+      color: #ffffff;
+    }
+
+    .settings-brand p {
+      color: var(--color-cyan);
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      margin-top: 4px;
+    }
+
+    .grid-layout {
+      display: grid;
+      grid-template-columns: 1.2fr 1fr;
+      gap: 30px;
+    }
+
+    @media (max-width: 768px) {
+      .grid-layout {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .panel-card {
+      padding: 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+      margin-bottom: 30px;
+    }
+
+    .panel-title {
+      font-size: 15px;
+      font-weight: 800;
+      color: #ffffff;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+      padding-bottom: 10px;
+      letter-spacing: 0.5px;
+      margin-bottom: 10px;
+    }
+
+    /* Modern Cyber Switch Toggle Toggles */
+    .setting-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 12px 0;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+    }
+
+    .setting-item:last-child {
+      border-bottom: none;
+    }
+
+    .setting-info {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      max-width: 75%;
+    }
+
+    .setting-label {
+      font-size: 13.5px;
+      font-weight: 700;
+      color: #ffffff;
+    }
+
+    .setting-desc {
+      font-size: 11px;
+      color: var(--color-text-secondary);
+      line-height: 1.4;
+    }
+
+    /* Custom Checkbox Toggle Switch CSS */
+    .switch {
+      position: relative;
+      display: inline-block;
+      width: 44px;
+      height: 22px;
+      flex-shrink: 0;
+    }
+
+    .switch input {
+      opacity: 0;
+      width: 0;
+      height: 0;
+    }
+
+    .slider {
+      position: absolute;
+      cursor: pointer;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background-color: rgba(255, 255, 255, 0.1);
+      transition: .3s;
+      border-radius: 22px;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .slider::before {
+      position: absolute;
+      content: "";
+      height: 14px;
+      width: 14px;
+      left: 3px;
+      bottom: 3px;
+      background-color: var(--color-text-secondary);
+      transition: .3s;
+      border-radius: 50%;
+    }
+
+    input:checked + .slider {
+      background-color: rgba(0, 240, 255, 0.15);
+      border-color: var(--color-cyan);
+      box-shadow: 0 0 8px rgba(0, 240, 255, 0.25);
+    }
+
+    input:checked + .slider::before {
+      transform: translateX(22px);
+      background-color: var(--color-cyan);
+      box-shadow: 0 0 6px var(--color-cyan);
+    }
+
+    /* Stats Grid Dashboard */
+    .stats-layout {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+    }
+
+    .stat-card {
+      padding: 16px;
+      background: rgba(0, 0, 0, 0.25);
+      border-radius: 8px;
+      border: 1px solid rgba(255, 255, 255, 0.03);
+      text-align: center;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .stat-number {
+      font-size: 26px;
+      font-weight: 900;
+      font-family: monospace;
+      color: #ffffff;
+      margin-top: 4px;
+    }
+
+    .stat-number.phish {
+      color: var(--color-phish);
+      text-shadow: 0 0 8px rgba(255, 0, 85, 0.3);
+    }
+
+    .stat-number.safe {
+      color: var(--color-safe);
+      text-shadow: 0 0 8px rgba(0, 255, 204, 0.3);
+    }
+
+    /* Utility action buttons styling */
+    .btn-group-column {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .secondary-btn {
+      width: 100%;
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 6px;
+      color: #ffffff;
+      padding: 11px 0;
+      font-size: 12px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: all 0.3s;
+      letter-spacing: 0.5px;
+    }
+
+    .secondary-btn:hover {
+      background: rgba(255, 255, 255, 0.08);
+      border-color: rgba(255, 255, 255, 0.2);
+    }
+
+    .danger-btn {
+      width: 100%;
+      background: rgba(255, 0, 85, 0.05);
+      border: 1px solid rgba(255, 0, 85, 0.2);
+      border-radius: 6px;
+      color: var(--color-phish);
+      padding: 11px 0;
+      font-size: 12px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: all 0.3s;
+      letter-spacing: 0.5px;
+    }
+
+    .danger-btn:hover {
+      background: rgba(255, 0, 85, 0.12);
+      border-color: var(--color-phish);
+      box-shadow: var(--glow-phish);
+    }
+
+    .toast {
+      position: fixed;
+      bottom: 24px;
+      right: 24px;
+      background: rgba(12, 18, 38, 0.95);
+      border: 1px solid var(--color-cyan);
+      box-shadow: 0 4px 15px rgba(0, 240, 255, 0.2);
+      color: #ffffff;
+      padding: 12px 24px;
+      border-radius: 6px;
+      font-size: 12.5px;
+      font-weight: 700;
+      opacity: 0;
+      transform: translateY(10px);
+      transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+      z-index: 100;
+    }
+
+    .toast.show {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  </style>
+</head>
+<body>
+  <!-- Space/Cyber Grid Background -->
+  <div class="cyber-grid"></div>
+
+  <div class="config-wrapper">
+    <!-- Header -->
+    <header class="settings-header">
+      <div class="settings-brand">
+        <h1>KALKI SECURITY</h1>
+        <p>Intelligence Center & Configurations Console</p>
+      </div>
+      <div>
+        <span class="status-chip safe" style="font-size: 12px; padding: 6px 14px;">Shield: Active</span>
+      </div>
+    </header>
+
+    <!-- Content Layout Grid -->
+    <div class="grid-layout">
+      <!-- LEFT COLUMN: SETTINGS CONTROLS -->
+      <div class="left-col">
+        <div class="glass panel-card">
+          <h2 class="panel-title">Active Threat Prevention</h2>
+
+          <!-- Toggle: Auto Scan -->
+          <div class="setting-item">
+            <div class="setting-info">
+              <span class="setting-label">Automated Webpage Inspection</span>
+              <span class="setting-desc">Automatically inspects webpage domains on load. Recommended to be active.</span>
+            </div>
+            <label class="switch">
+              <input type="checkbox" id="chk-auto-scan">
+              <span class="slider"></span>
+            </label>
+          </div>
+
+          <!-- Toggle: Floating Badge -->
+          <div class="setting-item">
+            <div class="setting-info">
+              <span class="setting-label">Floating Security Widget</span>
+              <span class="setting-desc">Injects a floating verification shield in the upper-right corner of scanned websites.</span>
+            </div>
+            <label class="switch">
+              <input type="checkbox" id="chk-floating-badge">
+              <span class="slider"></span>
+            </label>
+          </div>
+
+          <!-- Toggle: Notifications -->
+          <div class="setting-item">
+            <div class="setting-info">
+              <span class="setting-label">Desktop Notifications</span>
+              <span class="setting-desc">Dispatches immediate warning popups in the browser corner when a high risk site is accessed.</span>
+            </div>
+            <label class="switch">
+              <input type="checkbox" id="chk-notifications">
+              <span class="slider"></span>
+            </label>
+          </div>
+
+          <!-- Input: Backend Url -->
+          <div class="setting-item" style="flex-direction: column; align-items: flex-start; gap: 10px;">
+            <div class="setting-info" style="max-width: 100%;">
+              <span class="setting-label">AI Engine Endpoint</span>
+              <span class="setting-desc">Configure URL target port for the running Python Flask ML backend server.</span>
+            </div>
+            <input type="text" id="txt-backend-url" placeholder="http://127.0.0.1:5000" style="margin-top: 4px;">
+          </div>
+        </div>
+
+        <div class="glass panel-card">
+          <h2 class="panel-title">Backup & Log Clearance</h2>
+          <div class="btn-group-column">
+            <button id="btn-export-logs" class="secondary-btn">EXPORT HISTORY AS JSON</button>
+            <button id="btn-clear-history" class="danger-btn">ERASE RECENT LOG HISTORY</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- RIGHT COLUMN: METRICS & TELEMETRY -->
+      <div class="right-col">
+        <div class="glass panel-card">
+          <h2 class="panel-title">Cumulative Threat Telemetry</h2>
+          <p class="section-desc" style="margin-bottom: 6px;">Total scan outcomes accumulated by KALKI since extension activation:</p>
+          
+          <div class="stats-layout">
+            <div class="stat-card">
+              <span class="label">Total Scanned</span>
+              <div class="stat-number" id="stat-total-scans">0</div>
+            </div>
+            <div class="stat-card">
+              <span class="label">Phishing Blocked</span>
+              <div class="stat-number phish" id="stat-phishing-blocked">0</div>
+            </div>
+            <div class="stat-card">
+              <span class="label">Safe Approved</span>
+              <div class="stat-number safe" id="stat-safe-scans">0</div>
+            </div>
+            <div class="stat-card">
+              <span class="label">Links Inspected</span>
+              <div class="stat-number" id="stat-url-scans">0</div>
+            </div>
+            <div class="stat-card" style="grid-column: span 2;">
+              <span class="label">Emails Analyzed</span>
+              <div class="stat-number" id="stat-email-scans">0</div>
+            </div>
+          </div>
+
+          <div style="text-align: center; margin-top: 10px;">
+            <button id="btn-reset-stats" class="link-btn" style="font-size: 11px;">Reset Telemetry Stats Counter</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast popup for notifications -->
+  <div id="settings-toast" class="toast">Configuration Saved Successfully.</div>
+
+  <!-- Scripts -->
+  <script src="utils.js"></script>
+  <script src="settings.js"></script>
+</body>
+</html>
