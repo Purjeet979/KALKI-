@@ -481,8 +481,8 @@ function initGmailScanner() {
   console.log("KALKI: Gmail Real-Time Scanner Active");
 
   const observer = new MutationObserver((mutations) => {
-    // Gmail email bodies typically use the class '.a3s.aiL'
-    const emailBodies = document.querySelectorAll('.a3s.aiL:not([data-kalki-scanned="true"])');
+    // Gmail email bodies typically use the class '.a3s' or '.ii.gt'
+    const emailBodies = document.querySelectorAll('.a3s:not([data-kalki-scanned="true"]), .ii.gt:not([data-kalki-scanned="true"])');
     
     emailBodies.forEach((bodyNode) => {
       // Mark as scanned immediately to prevent duplicate API calls
