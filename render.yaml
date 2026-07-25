@@ -9,8 +9,3 @@ services:
         value: 3.9.0
       - key: OAUTHLIB_INSECURE_TRANSPORT
         value: 1
-    secretFiles:
-      - name: client_secret.json
-        content: "Upload your client_secret.json content here in Render Dashboard"
-      - name: serviceAccountKey.json
-        content: "Upload your serviceAccountKey.json content here in Render Dashboard"
