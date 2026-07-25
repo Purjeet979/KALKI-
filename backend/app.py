@@ -45,7 +45,9 @@ url_model = None
 # Paths to models
 EMAIL_MODEL_PATH = os.path.join(os.path.dirname(__file__), "email_phishing_detector.joblib")
 URL_MODEL_PATH = os.path.join(os.path.dirname(__file__), "phishing_url_detector_pipeline.joblib")
-CLIENT_SECRETS_FILE = os.path.join(os.path.dirname(__file__), "client_secret.json")
+
+# Check for Render Secret Files first, fallback to local
+CLIENT_SECRETS_FILE = "/etc/secrets/client_secret.json" if os.path.exists("/etc/secrets/client_secret.json") else os.path.join(os.path.dirname(__file__), "client_secret.json")
 
 def load_models():
     """Loads the pre-trained Joblib models during server startup."""
@@ -73,7 +75,7 @@ def load_models():
 load_models()
 
 # Initialize Firebase Admin
-FIREBASE_KEY_PATH = os.path.join(os.path.dirname(__file__), "serviceAccountKey.json")
+FIREBASE_KEY_PATH = "/etc/secrets/serviceAccountKey.json" if os.path.exists("/etc/secrets/serviceAccountKey.json") else os.path.join(os.path.dirname(__file__), "serviceAccountKey.json")
 db = None
 
 if os.path.exists(FIREBASE_KEY_PATH):
@@ -515,4 +517,5 @@ def auth_callback():
     return redirect("https://snehsaathi-hackathon.web.app/dashboard.html")
 
 if __name__ == "__main__":
-    app.run(host="127.0.0.1", port=5000, debug=True)
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host="0.0.0.0", port=port, debug=False)
