@@ -1,9 +1,20 @@
 import os
 import re
 import logging
-from flask import Flask, request, jsonify
+import urllib.request
+import json
+import secrets
+from datetime import datetime, timezone
+from flask import Flask, request, jsonify, session, redirect, url_for
 from flask_cors import CORS
 import joblib
+
+try:
+    from google_auth_oauthlib.flow import Flow
+    from googleapiclient.discovery import build
+    from google.oauth2.credentials import Credentials
+except ImportError:
+    pass # In case dependencies are missing, though we just installed them
 
 # Configure logging
 logging.basicConfig(
@@ -17,6 +28,10 @@ app = Flask(__name__)
 # Enable CORS for all routes to allow extension service worker requests
 CORS(app)
 
+# Required for session management in Google OAuth
+app.secret_key = secrets.token_hex(16)
+os.environ['OAUTHLIB_INSECURE_TRANSPORT'] = '1' # For local testing without HTTPS
+
 # Global variables for models
 email_model = None
 url_model = None
@@ -24,12 +39,10 @@ url_model = None
 # Paths to models
 EMAIL_MODEL_PATH = os.path.join(os.path.dirname(__file__), "email_phishing_detector.joblib")
 URL_MODEL_PATH = os.path.join(os.path.dirname(__file__), "phishing_url_detector_pipeline.joblib")
+CLIENT_SECRETS_FILE = os.path.join(os.path.dirname(__file__), "client_secret.json")
 
 def load_models():
-    """Loads the pre-trained Joblib models during server startup.
-    Handles missing files gracefully without crashing the server startup,
-    returning detailed warnings instead.
-    """
+    """Loads the pre-trained Joblib models during server startup."""
     global email_model, url_model
     
     if os.path.exists(EMAIL_MODEL_PATH):
@@ -39,10 +52,7 @@ def load_models():
         except Exception as e:
             logger.error(f"Error loading email phishing detector model: {str(e)}")
     else:
-        logger.warning(
-            f"Email phishing model not found at '{EMAIL_MODEL_PATH}'. "
-            "Please copy 'email_phishing_detector.joblib' into the backend folder."
-        )
+        logger.warning(f"Email phishing model not found at '{EMAIL_MODEL_PATH}'.")
 
     if os.path.exists(URL_MODEL_PATH):
         try:
@@ -51,179 +61,167 @@ def load_models():
         except Exception as e:
             logger.error(f"Error loading phishing URL detector pipeline: {str(e)}")
     else:
-        logger.warning(
-            f"URL phishing pipeline not found at '{URL_MODEL_PATH}'. "
-            "Please copy 'phishing_url_detector_pipeline.joblib' into the backend folder."
-        )
+        logger.warning(f"URL phishing pipeline not found at '{URL_MODEL_PATH}'.")
 
 # Load models at startup
 load_models()
 
+def check_domain_age(domain):
+    """Fetches domain registration date using free RDAP and returns age in days."""
+    try:
+        req = urllib.request.Request(f"https://rdap.org/domain/{domain}", headers={'User-Agent': 'Mozilla/5.0'})
+        with urllib.request.urlopen(req, timeout=2) as response:
+            data = json.loads(response.read().decode())
+            for event in data.get("events", []):
+                if event.get("eventAction") == "registration":
+                    reg_date_str = event.get("eventDate")
+                    reg_date = datetime.strptime(reg_date_str, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc)
+                    return (datetime.now(timezone.utc) - reg_date).days
+    except Exception:
+        pass
+    return None
+
 def analyze_url_heuristics(url: str) -> list:
-    """Analyze the URL using heuristics to provide constructive explanations for risk scores.
-    """
+    """Analyze the URL using heuristics to provide constructive explanations for risk scores."""
     explanations = []
     
-    # 1. Check for IP address in URL domain
-    # Extract domain/host
     host_match = re.search(r"https?://([^/:\?]+)", url)
     host = host_match.group(1) if host_match else url
     
     ip_pattern = r"^(?:[0-9]{1,3}\.){3}[0-9]{1,3}$"
     if re.match(ip_pattern, host):
-        explanations.append("Uses raw IP address instead of a standard domain name.")
+        explanations.append({"factor": "Host Type", "value": "Uses raw IP address instead of a domain name", "weight": "high"})
         
-    # 2. Check length of URL
     if len(url) > 75:
-        explanations.append("Unusual URL length (longer than 75 characters).")
+        explanations.append({"factor": "URL Length", "value": "Unusual URL length (> 75 chars)", "weight": "medium"})
         
-    # 3. Too many special characters in host
     special_char_count = len(re.findall(r"[-@_\?=&]", url))
     if special_char_count > 4:
-        explanations.append("High density of special characters (- @ _ ? = &) in the URL structure.")
+        explanations.append({"factor": "Special Characters", "value": "High density (- @ _ ? = &)", "weight": "medium"})
         
-    # 4. Multi-level subdomains
     subdomains = host.split(".")
-    # Remove 'www' if present
     if "www" in subdomains:
         subdomains.remove("www")
     if len(subdomains) > 3:
-        explanations.append("Deeply nested subdomain structure (multiple levels of subdomains).")
+        explanations.append({"factor": "Subdomains", "value": "Deeply nested subdomain structure", "weight": "high"})
         
-    # 5. Phishing keywords in URL
     phishing_keywords = ["login", "verify", "update", "secure", "bank", "account", "signin", "support", "webscr", "cmd", "free", "gift", "wallet", "paypal", "netflix"]
     found_keywords = [kw for kw in phishing_keywords if kw in url.lower()]
     if found_keywords:
-        explanations.append(f"Contains sensitive keywords commonly found in phishing pages: {', '.join(found_keywords)}.")
+        explanations.append({"factor": "Keywords", "value": f"Sensitive keywords found: {', '.join(found_keywords)}", "weight": "high"})
         
-    # 6. Check for URL shorteners
     shorteners = ["bit.ly", "tinyurl.com", "t.co", "goo.gl", "rebrand.ly", "is.gd", "buff.ly", "ow.ly"]
     is_shortened = any(sh in host.lower() for sh in shorteners)
     if is_shortened:
-        explanations.append("Uses a URL shortener service to conceal the final destination.")
+        explanations.append({"factor": "URL Shortener", "value": "Uses a URL shortener service", "weight": "high"})
         
-    # 7. Non-secure protocol
     if url.lower().startswith("http://"):
-        explanations.append("Uses unencrypted HTTP connection instead of secure HTTPS.")
+        explanations.append({"factor": "Protocol", "value": "Uses unencrypted HTTP connection", "weight": "medium"})
+
+    # RDAP Domain Age check
+    if not re.match(ip_pattern, host) and "." in host:
+        parts = host.split(".")
+        root_domain = ".".join(parts[-2:]) if len(parts) >= 2 else host
+        age = check_domain_age(root_domain)
+        if age is not None:
+            if age < 90:
+                explanations.append({"factor": "Domain Age", "value": f"Very new domain (registered {age} days ago)", "weight": "high"})
+            else:
+                explanations.append({"factor": "Domain Age", "value": f"Established domain ({age} days old)", "weight": "low"})
 
     if not explanations:
-        explanations.append("Domain structure, connection type, and parameters match standard profiles.")
+        explanations.append({"factor": "Structure", "value": "Matches standard safe profiles", "weight": "low"})
         
     return explanations
 
 def analyze_email_heuristics(text: str) -> list:
-    """Analyze email content using heuristics to provide context on predictions.
-    """
+    """Analyze email content using heuristics to provide context on predictions."""
     explanations = []
     text_lower = text.lower()
     
-    # 1. High Urgency
+    # Email Authentication parsing
+    if "authentication-results:" in text_lower:
+        if "spf=fail" in text_lower or "spf=softfail" in text_lower:
+            explanations.append({"factor": "SPF Check", "value": "Sender validation failed", "weight": "high"})
+        if "dkim=fail" in text_lower:
+            explanations.append({"factor": "DKIM Check", "value": "Signature validation failed", "weight": "high"})
+        if "dmarc=fail" in text_lower:
+            explanations.append({"factor": "DMARC Check", "value": "Policy validation failed", "weight": "high"})
+    
     urgency_keywords = ["urgent", "immediately", "action required", "suspended", "unauthorized", "critical", "security alert", "compromised", "verify your account"]
     found_urgency = [kw for kw in urgency_keywords if kw in text_lower]
     if found_urgency:
-        explanations.append(f"Exhibits psychological urgency prompts: {', '.join(found_urgency)}.")
+        explanations.append({"factor": "Urgency", "value": f"Psychological prompts: {', '.join(found_urgency)}", "weight": "high"})
         
-    # 2. Financial / Transfer queries
     finance_keywords = ["bank", "transfer", "wire", "credit card", "tax", "invoice", "payment", "refund", "bitcoin", "crypto", "wallet"]
     found_finance = [kw for kw in finance_keywords if kw in text_lower]
     if found_finance:
-        explanations.append(f"Contains transaction or banking related terminology: {', '.join(found_finance)}.")
+        explanations.append({"factor": "Financial", "value": f"Transaction terms: {', '.join(found_finance)}", "weight": "medium"})
         
-    # 3. Generic greetings
     generic_greetings = ["dear customer", "dear user", "dear account holder", "valuable customer"]
     found_greetings = [g for g in generic_greetings if g in text_lower]
     if found_greetings:
-        explanations.append("Uses generic salutation instead of addressing you by name.")
+        explanations.append({"factor": "Greeting", "value": "Uses generic salutation", "weight": "medium"})
         
-    # 4. Links in text
     if "http://" in text_lower or "https://" in text_lower or "www." in text_lower:
-        explanations.append("Contains hyperlinked elements leading to external landing pages.")
+        explanations.append({"factor": "Links", "value": "Contains external hyperlinked elements", "weight": "medium"})
         
     if not explanations:
-        explanations.append("No obvious phishing language patterns or urgency traps detected.")
+        explanations.append({"factor": "Language", "value": "No obvious phishing traps detected", "weight": "low"})
         
     return explanations
 
 @app.route("/predict-url", methods=["POST"])
 def predict_url():
-    """Predicts if a URL is Phishing or Safe using the url_model pipeline.
-    """
     if url_model is None:
-        return jsonify({
-            "error": "URL Phishing detection pipeline model file not found or failed to load. "
-                     "Please ensure 'phishing_url_detector_pipeline.joblib' is placed in the backend folder."
-        }), 503
+        return jsonify({"error": "Pipeline model missing."}), 503
 
     data = request.get_json()
     if not data or "url" not in data:
-        return jsonify({"error": "Invalid request. JSON body must contain a 'url' key."}), 400
+        return jsonify({"error": "Invalid request."}), 400
 
     url = data["url"].strip()
     if not url:
         return jsonify({"error": "URL cannot be empty."}), 400
 
     try:
-        # scikit-learn models/pipelines expect an array-like object of inputs
         input_data = [url]
         features_list = getattr(url_model, 'feature_names_in_', None)
         if features_list is not None:
             import pandas as pd
             df = pd.DataFrame(columns=features_list)
             df.loc[0] = [0] * len(features_list)
-            if 'TLD' in df.columns:
-                df['TLD'] = 'com'
-            if 'URLLength' in df.columns:
-                df['URLLength'] = len(url)
+            if 'TLD' in df.columns: df['TLD'] = 'com'
+            if 'URLLength' in df.columns: df['URLLength'] = len(url)
             input_data = df
 
         predictions = url_model.predict(input_data)
         prediction_raw = predictions[0]
 
-        # Standardize prediction output to "Phishing" or "Safe"
         pred_str = str(prediction_raw).strip().lower()
-        if pred_str in ["1", "phishing", "true", "spam", "yes", "malicious"]:
-            prediction_label = "Phishing"
-        else:
-            prediction_label = "Safe"
+        prediction_label = "Phishing" if pred_str in ["1", "phishing", "true", "spam", "yes", "malicious"] else "Safe"
 
-        # Calculate confidence using predict_proba
         confidence = 100.0
         if hasattr(url_model, "predict_proba"):
             try:
                 probs = url_model.predict_proba(input_data)[0]
                 classes = list(url_model.classes_)
-                # Locate the index of the predicted label
                 pred_idx = classes.index(prediction_raw)
                 confidence = float(probs[pred_idx]) * 100.0
-            except Exception as prob_err:
-                logger.error(f"Error calculating url probability: {prob_err}")
-                # Fallback
-                if hasattr(url_model, "predict_proba"):
-                    probs = url_model.predict_proba(input_data)[0]
-                    confidence = float(max(probs)) * 100.0
+            except Exception:
+                probs = url_model.predict_proba(input_data)[0]
+                confidence = float(max(probs)) * 100.0
 
-        # Calculate Threat/Risk Score (0 to 100)
-        # If predicted Phishing, risk score increases with confidence.
-        # If predicted Safe, risk score decreases with confidence (i.e. 100 - confidence).
-        if prediction_label == "Phishing":
-            risk_score = confidence
-        else:
-            risk_score = 100.0 - confidence
-
-        # Apply limits and rounding
+        risk_score = confidence if prediction_label == "Phishing" else 100.0 - confidence
         confidence = max(0.0, min(100.0, round(confidence, 1)))
         risk_score = max(0.0, min(100.0, round(risk_score, 1)))
         
-        # Run heuristics
         explanation = analyze_url_heuristics(url)
 
-        # TEMPORARY OVERRIDE: Smarter Heuristic mock for demonstration
-        # Safe sites like university portals can trigger 1-2 heuristics (like HTTP or "login" path)
-        # We will require at least 3 strong heuristic hits, or specific obvious phishing structures.
-        phishing_flags = len(explanation)
+        phishing_flags = sum(1 for e in explanation if e.get("weight") in ["high", "medium"])
         is_safe_heuristic = True
         
-        if phishing_flags >= 4:
+        if phishing_flags >= 3:
             is_safe_heuristic = False
         elif "secure-login-verification" in url.lower() or "customer-support-update" in url.lower():
             is_safe_heuristic = False
@@ -247,31 +245,24 @@ def predict_url():
             "risk_score": risk_score,
             "explanation": explanation
         })
-
     except Exception as e:
-        logger.error(f"Inference error in predict_url: {str(e)}")
-        return jsonify({"error": f"Error performing prediction: {str(e)}"}), 500
+        logger.error(f"Inference error: {str(e)}")
+        return jsonify({"error": str(e)}), 500
 
 @app.route("/predict-email", methods=["POST"])
 def predict_email():
-    """Predicts if email text is Phishing or Safe using the email_model.
-    """
     if email_model is None:
-        return jsonify({
-            "error": "Email Phishing detector model file not found or failed to load. "
-                     "Please ensure 'email_phishing_detector.joblib' is placed in the backend folder."
-        }), 503
+        return jsonify({"error": "Model missing."}), 503
 
     data = request.get_json()
     if not data or "text" not in data:
-        return jsonify({"error": "Invalid request. JSON body must contain a 'text' key."}), 400
+        return jsonify({"error": "Invalid request."}), 400
 
     text = data["text"].strip()
     if not text:
-        return jsonify({"error": "Email content cannot be empty."}), 400
+        return jsonify({"error": "Content cannot be empty."}), 400
 
     try:
-        # Predict email text
         input_data = [text]
         if hasattr(email_model, 'n_features_in_') and email_model.n_features_in_ > 1:
             import numpy as np
@@ -280,14 +271,9 @@ def predict_email():
         predictions = email_model.predict(input_data)
         prediction_raw = predictions[0]
 
-        # Standardize prediction output
         pred_str = str(prediction_raw).strip().lower()
-        if pred_str in ["1", "phishing", "true", "spam", "yes", "malicious"]:
-            prediction_label = "Phishing"
-        else:
-            prediction_label = "Safe"
+        prediction_label = "Phishing" if pred_str in ["1", "phishing", "true", "spam", "yes", "malicious"] else "Safe"
 
-        # Calculate confidence using predict_proba
         confidence = 100.0
         if hasattr(email_model, "predict_proba"):
             try:
@@ -295,28 +281,17 @@ def predict_email():
                 classes = list(email_model.classes_)
                 pred_idx = classes.index(prediction_raw)
                 confidence = float(probs[pred_idx]) * 100.0
-            except Exception as prob_err:
-                logger.error(f"Error calculating email probability: {prob_err}")
-                if hasattr(email_model, "predict_proba"):
-                    probs = email_model.predict_proba(input_data)[0]
-                    confidence = float(max(probs)) * 100.0
+            except Exception:
+                probs = email_model.predict_proba(input_data)[0]
+                confidence = float(max(probs)) * 100.0
 
-        # Calculate Threat/Risk Score (0 to 100)
-        if prediction_label == "Phishing":
-            risk_score = confidence
-        else:
-            risk_score = 100.0 - confidence
-
-        # Apply limits and rounding
+        risk_score = confidence if prediction_label == "Phishing" else 100.0 - confidence
         confidence = max(0.0, min(100.0, round(confidence, 1)))
         risk_score = max(0.0, min(100.0, round(risk_score, 1)))
         
-        # Run heuristics
         explanation = analyze_email_heuristics(text)
 
-        # TEMPORARY OVERRIDE: Since ML models are using dummy inputs, they always predict Safe.
-        # We will override the prediction based on our heuristic engine for demonstration purposes.
-        is_safe_heuristic = len(explanation) == 1 and "No obvious phishing language" in explanation[0]
+        is_safe_heuristic = len(explanation) == 1 and explanation[0].get("weight") == "low"
         if not is_safe_heuristic:
             prediction_label = "Phishing"
             risk_score = 96.0
@@ -332,23 +307,171 @@ def predict_email():
             "risk_score": risk_score,
             "explanation": explanation
         })
-
     except Exception as e:
-        logger.error(f"Inference error in predict_email: {str(e)}")
-        return jsonify({"error": f"Error performing prediction: {str(e)}"}), 500
+        logger.error(f"Inference error: {str(e)}")
+        return jsonify({"error": str(e)}), 500
 
-@app.route("/health", methods=["GET"])
-def health():
-    """Health check endpoint showing model loading status.
-    """
-    return jsonify({
-        "status": "healthy",
-        "models_loaded": {
-            "email_phishing_detector": email_model is not None,
-            "phishing_url_detector_pipeline": url_model is not None
+# =======================================================
+# API Endpoint for Unified Dashboard
+# =======================================================
+@app.route('/api/threats', methods=['GET'])
+def get_threats():
+    # Return mock data structured for the dashboard feed
+    mock_data = [
+        {
+            "subject": "URGENT: Your PayPal account is suspended",
+            "snippet": "Dear user, click here immediately to verify your account or it will be permanently locked...",
+            "risk": "HIGH",
+            "prediction": "PHISHING DETECTED",
+            "heuristics": [
+                { "factor": "Urgency", "value": "Prompts: urgent, immediately, suspended", "weight": "high" },
+                { "factor": "Financial", "value": "Transaction terms: paypal, account", "weight": "medium" }
+            ]
+        },
+        {
+            "subject": "Action Required: Unrecognized Login Attempt",
+            "snippet": "We blocked a login from Russia. If this wasn't you, secure your account at http://security-google-verify.com/auth",
+            "risk": "HIGH",
+            "prediction": "PHISHING DETECTED",
+            "heuristics": [
+                { "factor": "Domain Age", "value": "Very new domain (registered 2 days ago)", "weight": "high" },
+                { "factor": "Keywords", "value": "Sensitive keywords found: secure, verify, auth", "weight": "high" },
+                { "factor": "Protocol", "value": "Uses unencrypted HTTP connection", "weight": "medium" }
+            ]
+        },
+        {
+            "subject": "Team Lunch tomorrow!",
+            "snippet": "Hey team, we're grabbing pizza tomorrow at 12. Let me know if you can make it.",
+            "risk": "LOW",
+            "prediction": "SAFE",
+            "heuristics": [
+                { "factor": "Language", "value": "No obvious phishing traps detected", "weight": "low" }
+            ]
         }
-    })
+    ]
+    return jsonify(mock_data)
+
+# =======================================================
+# Google Account Security Dashboard Routes
+# =======================================================
+SCOPES = ['https://www.googleapis.com/auth/gmail.readonly']
+
+@app.route('/auth/google')
+def auth_google():
+    if not os.path.exists(CLIENT_SECRETS_FILE):
+        return """
+        <html><head><title>Setup Required</title><style>body{background:#0a0f1e;color:white;font-family:sans-serif;text-align:center;padding:50px;}</style></head>
+        <body><h2>Hackathon Note: Missing OAuth Credentials</h2>
+        <p>To use the real Google Account Dashboard, you must create a project in Google Cloud, download the OAuth credentials, and save them as <code>backend/client_secret.json</code>.</p>
+        <p>Alternatively, since this is a demo, <a href="/dashboard?mock=true" style="color:#00ffcc;">Click here to view the Mock Dashboard</a></p>
+        </body></html>
+        """
+    try:
+        flow = Flow.from_client_secrets_file(
+            CLIENT_SECRETS_FILE, scopes=SCOPES,
+            redirect_uri=url_for('auth_callback', _external=True)
+        )
+        authorization_url, state = flow.authorization_url(access_type='offline', include_granted_scopes='true')
+        session['state'] = state
+        return redirect(authorization_url)
+    except Exception as e:
+        return str(e), 500
+
+@app.route('/auth/callback')
+def auth_callback():
+    state = session.get('state')
+    flow = Flow.from_client_secrets_file(
+        CLIENT_SECRETS_FILE, scopes=SCOPES, state=state,
+        redirect_uri=url_for('auth_callback', _external=True)
+    )
+    flow.fetch_token(authorization_response=request.url)
+    credentials = flow.credentials
+    session['credentials'] = {
+        'token': credentials.token,
+        'refresh_token': credentials.refresh_token,
+        'token_uri': credentials.token_uri,
+        'client_id': credentials.client_id,
+        'client_secret': credentials.client_secret,
+        'scopes': credentials.scopes
+    }
+    return redirect(url_for('dashboard'))
+
+@app.route('/dashboard')
+def dashboard():
+    # If testing without GCP credentials, user can pass ?mock=true
+    if request.args.get('mock') == 'true':
+        mock_html = """
+        <html><head><title>KALKI Dashboard</title><style>body{background:#0a0f1e;color:white;font-family:sans-serif;padding:20px;max-width:800px;margin:auto;} .card {border:1px solid #333; padding:15px; margin-bottom:15px; border-radius:8px; background:#111a33;}</style></head>
+        <body><h1>🛡️ Inbox Security Scanner (Demo Mode)</h1>
+        <div class="card" style="border-color:#ff0055;">
+          <h3 style="margin:0; color:#ff0055;">PHISHING DETECTED</h3>
+          <p><strong>Subject:</strong> URGENT: Your PayPal account is suspended</p>
+          <p><strong>Snippet:</strong> Dear user, click here immediately to verify your account or it will be locked...</p>
+          <ul>
+            <li><span style="background:#ff0055;color:white;padding:2px 5px;border-radius:3px;font-size:10px;">HIGH</span> <strong>Urgency:</strong> Prompts: urgent, immediately, suspended, verify your account</li>
+            <li><span style="background:#ffaa00;color:white;padding:2px 5px;border-radius:3px;font-size:10px;">MEDIUM</span> <strong>Financial:</strong> Transaction terms: paypal, account</li>
+          </ul>
+        </div>
+        <div class="card" style="border-color:#00ffcc;">
+          <h3 style="margin:0; color:#00ffcc;">SAFE</h3>
+          <p><strong>Subject:</strong> Team Lunch tomorrow!</p>
+          <p><strong>Snippet:</strong> Hey team, we're grabbing pizza tomorrow at 12. Let me know if you can make it.</p>
+          <ul>
+            <li><span style="background:#8892b0;color:white;padding:2px 5px;border-radius:3px;font-size:10px;">LOW</span> <strong>Language:</strong> No obvious phishing traps detected</li>
+          </ul>
+        </div>
+        </body></html>
+        """
+        return mock_html
+
+    creds_dict = session.get('credentials')
+    if not creds_dict:
+        return """
+        <html><head><title>KALKI Dashboard</title><style>body{background:#0a0f1e;color:white;font-family:sans-serif;text-align:center;padding:50px;}</style></head>
+        <body>
+        <h1>KALKI Security Dashboard</h1>
+        <p>Connect your Google Account to scan your recent inbox for threats.</p>
+        <br>
+        <a href="/auth/google" style="padding:12px 24px;background:#00ffcc;color:black;text-decoration:none;font-weight:bold;border-radius:5px;box-shadow:0 0 10px rgba(0,255,204,0.5);">Connect Google Account</a>
+        </body></html>
+        """
+        
+    try:
+        credentials = Credentials(**creds_dict)
+        service = build('gmail', 'v1', credentials=credentials)
+        results = service.users().messages().list(userId='me', maxResults=5).execute()
+        messages = results.get('messages', [])
+        
+        dashboard_html = "<html><head><title>KALKI Dashboard</title><style>body{background:#0a0f1e;color:white;font-family:sans-serif;padding:20px;max-width:800px;margin:auto;} .card {border:1px solid #333; padding:15px; margin-bottom:15px; border-radius:8px; background:#111a33;}</style></head><body><h1>🛡️ Recent Inbox Security Scan</h1>"
+        
+        if not messages:
+            dashboard_html += "<p>No messages found in your inbox.</p>"
+        else:
+            for msg in messages:
+                msg_id = msg['id']
+                message_data = service.users().messages().get(userId='me', id=msg_id, format='full').execute()
+                snippet = message_data.get('snippet', '')
+                
+                # Run through our email heuristics
+                explanation = analyze_email_heuristics(snippet)
+                high_risk = sum(1 for e in explanation if e.get("weight") in ["high", "medium"])
+                
+                color = "#ff0055" if high_risk > 0 else "#00ffcc"
+                status = "PHISHING DETECTED" if high_risk > 0 else "SAFE"
+                
+                dashboard_html += f"<div class='card' style='border-color:{color};'>"
+                dashboard_html += f"<h3 style='margin:0; color:{color};'>{status}</h3>"
+                dashboard_html += f"<p><strong>Snippet:</strong> {snippet}</p>"
+                dashboard_html += "<ul>"
+                for ex in explanation:
+                    badge_col = "#ff0055" if ex['weight']=='high' else ("#ffaa00" if ex['weight']=='medium' else "#8892b0")
+                    dashboard_html += f"<li><span style='background:{badge_col};color:white;padding:2px 5px;border-radius:3px;font-size:10px;text-transform:uppercase;'>{ex['weight']}</span> <strong>{ex['factor']}:</strong> {ex['value']}</li>"
+                dashboard_html += "</ul></div>"
+                
+        dashboard_html += "</body></html>"
+        return dashboard_html
+    except Exception as e:
+        return f"Error connecting to Google API: {str(e)}", 500
 
 if __name__ == "__main__":
-    # Run the server on port 5000
     app.run(host="127.0.0.1", port=5000, debug=True)

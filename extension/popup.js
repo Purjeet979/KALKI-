@@ -173,7 +173,11 @@ document.addEventListener("DOMContentLoaded", () => {
     let reasonsHtml = "";
     if (scanItem.explanation && scanResultHasInsights(scanItem.explanation)) {
       scanItem.explanation.forEach(reason => {
-        reasonsHtml += `<li>${reason}</li>`;
+        if (typeof reason === 'object' && reason !== null) {
+          reasonsHtml += `<li><span class="status-badge" style="padding: 1px 4px; font-size: 9px; margin-right: 4px; color:#fff; background: ${reason.weight === 'high' ? '#ff0055' : (reason.weight === 'medium' ? '#ffaa00' : '#8892b0')}">${reason.weight}</span> <strong>${reason.factor}:</strong> ${reason.value}</li>`;
+        } else {
+          reasonsHtml += `<li>${reason}</li>`;
+        }
       });
     } else {
       reasonsHtml = "<li>Domain reputation and structural attributes are normal.</li>";
@@ -321,7 +325,11 @@ document.addEventListener("DOMContentLoaded", () => {
     let reasonsHtml = "";
     if (scanItem.explanation && scanItem.explanation.length > 0) {
       scanItem.explanation.forEach(reason => {
-        reasonsHtml += `<li>${reason}</li>`;
+        if (typeof reason === 'object' && reason !== null) {
+          reasonsHtml += `<li><span class="status-badge" style="padding: 1px 4px; font-size: 9px; margin-right: 4px; color:#fff; background: ${reason.weight === 'high' ? '#ff0055' : (reason.weight === 'medium' ? '#ffaa00' : '#8892b0')}">${reason.weight}</span> <strong>${reason.factor}:</strong> ${reason.value}</li>`;
+        } else {
+          reasonsHtml += `<li>${reason}</li>`;
+        }
       });
     } else {
       reasonsHtml = "<li>No active anomalies detected in string.</li>";

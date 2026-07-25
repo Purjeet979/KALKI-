@@ -8,6 +8,12 @@ let widgetRoot = null;
 
 // Initialize content script
 function init() {
+  // Inject extension detection marker for the website frontend
+  const marker = document.createElement("div");
+  marker.id = "kalki-extension-installed";
+  marker.style.display = "none";
+  document.body.appendChild(marker);
+
   // Query background service worker for any cached scan result for the current page
   chrome.runtime.sendMessage({ action: "get_tab_status" }, (response) => {
     if (response && response.result) {
@@ -289,7 +295,11 @@ function renderWidgetDOM(scanResult) {
   if (scanResult.explanation && scanResult.explanation.length > 0) {
     explanationsHtml = `<ul class="reasons-list">`;
     scanResult.explanation.forEach(reason => {
-      explanationsHtml += `<li>${reason}</li>`;
+      if (typeof reason === 'object' && reason !== null) {
+        explanationsHtml += `<li><span class="status-badge" style="padding: 1px 4px; font-size: 9px; margin-right: 4px; color:#fff; background: ${reason.weight === 'high' ? '#ff0055' : (reason.weight === 'medium' ? '#ffaa00' : '#8892b0')}">${reason.weight}</span> <strong>${reason.factor}:</strong> ${reason.value}</li>`;
+      } else {
+        explanationsHtml += `<li>${reason}</li>`;
+      }
     });
     explanationsHtml += `</ul>`;
   } else {
@@ -358,6 +368,9 @@ function renderWidgetDOM(scanResult) {
       removeWidget();
     });
   }
+
+  // Apply OTP / Credential Guard
+  applyCredentialGuard(isPhishing);
 }
 
 /**
@@ -368,6 +381,21 @@ function removeWidget() {
     widgetRoot.remove();
     widgetRoot = null;
   }
+}
+
+// Pre-Submit OTP / Credential Guard
+function applyCredentialGuard(isPhishing) {
+  if (!isPhishing) return;
+  const forms = document.querySelectorAll('form');
+  forms.forEach(form => {
+    form.addEventListener('submit', (e) => {
+      const passwordFields = form.querySelectorAll('input[type="password"]');
+      if (passwordFields.length > 0) {
+        e.preventDefault();
+        alert("🛡️ KALKI SECURITY ALERT 🛡️\n\nThis page has been flagged as a HIGH RISK phishing site.\nSubmission of credentials has been blocked to protect your account.");
+      }
+    });
+  });
 }
 
 // Kick off initialization

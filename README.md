@@ -62,11 +62,11 @@ The server will bind to `http://127.0.0.1:5000/`. You can verify it is running b
 ---
 
 ### Step 4: Load the Chrome Extension
-1. Open Google Chrome.
-2. Navigate to `chrome://extensions/`.
+1. Download the `kalki-extension.zip` file and **extract/unzip** it to a folder on your computer.
+2. Open Google Chrome and navigate to `chrome://extensions/`.
 3. In the top-right corner, toggle **Developer mode** to **ON**.
 4. In the top-left corner, click **Load unpacked**.
-5. Select the **`extension/`** directory in your workspace folder.
+5. Select the extracted folder.
 6. The KALKI extension logo will appear in your extensions list. Pin it to your browser toolbar for quick access.
 
 ---
