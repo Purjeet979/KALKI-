@@ -4,87 +4,12 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>KALKI | Secure Login</title>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Space+Grotesk:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="style.css">
-    <style>
-        body {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            height: 100vh;
-            margin: 0;
-            overflow: hidden;
-            background-color: #0a0f1e;
-        }
-        .login-box {
-            background: rgba(15, 20, 35, 0.85);
-            border: 1px solid rgba(0, 255, 204, 0.4);
-            border-radius: 16px;
-            padding: 40px;
-            width: 100%;
-            max-width: 400px;
-            text-align: center;
-            backdrop-filter: blur(15px);
-            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5), 0 0 20px rgba(0, 255, 204, 0.1);
-            position: relative;
-            z-index: 2;
-        }
-        .login-box h2 {
-            margin: 0 0 10px 0;
-            color: #fff;
-            font-weight: 800;
-        }
-        .login-box p {
-            color: #8892b0;
-            font-size: 14px;
-            margin-bottom: 30px;
-        }
-        .input-group {
-            margin-bottom: 20px;
-            text-align: left;
-        }
-        .input-group label {
-            display: block;
-            color: #a0aec0;
-            font-size: 12px;
-            margin-bottom: 8px;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-        }
-        .login-input {
-            width: 100%;
-            padding: 14px;
-            background: rgba(255, 255, 255, 0.05);
-            border: 1px solid rgba(255, 255, 255, 0.2);
-            border-radius: 8px;
-            color: #fff;
-            font-size: 15px;
-            outline: none;
-            transition: all 0.3s;
-            box-sizing: border-box;
-        }
-        .login-input:focus {
-            border-color: #00ffcc;
-            background: rgba(0, 255, 204, 0.05);
-            box-shadow: 0 0 10px rgba(0, 255, 204, 0.2);
-        }
-        .btn-login {
-            width: 100%;
-            padding: 14px;
-            background: linear-gradient(90deg, #00ffcc, #00b3ff);
-            color: #0a0f1e;
-            border: none;
-            border-radius: 8px;
-            font-size: 15px;
-            font-weight: 700;
-            cursor: pointer;
-            transition: all 0.3s;
-        }
-        .btn-login:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 5px 15px rgba(0, 255, 204, 0.4);
-        }
-    </style>
+    <script>
+        const savedTheme = localStorage.getItem("kalkiTheme") || "dark";
+        document.documentElement.setAttribute("data-theme", savedTheme);
+    </script>
 </head>
 <body>
     <script>
@@ -95,6 +20,7 @@
         }
     </script>
     <div class="cyber-grid"></div>
+    <div class="login-body-wrapper">
     
     <div class="login-box">
         <svg style="width:50px; fill:#00ffcc; margin-bottom:15px;" viewBox="0 0 24 24"><path d="M12.48 10.92v3.28h7.84c-.24 1.84-.853 3.187-1.787 4.133-1.147 1.147-2.933 2.4-6.053 2.4-4.827 0-8.6-3.893-8.6-8.72s3.773-8.72 8.6-8.72c2.6 0 4.507 1.027 5.907 2.347l2.307-2.307C18.747 1.44 16.133 0 12.48 0 5.867 0 .307 5.387.307 12s5.56 12 12.173 12c3.573 0 6.267-1.173 8.373-3.36 2.16-2.16 2.84-5.213 2.84-7.667 0-.76-.053-1.467-.173-2.053H12.48z"/></svg>
@@ -109,46 +35,33 @@
         <button id="btn-submit" class="btn-login">Connect & Continue</button>
         <a href="index.html" style="display:block; margin-top:20px; color:#8892b0; font-size:13px; text-decoration:none; transition: 0.2s;">&larr; Back to Home</a>
     </div>
+    </div>
 
     <script>
         document.getElementById("btn-submit").addEventListener("click", () => {
-            // Extension Detection Gate
-            if (!document.getElementById("kalki-extension-installed")) {
-                alert("🛡️ KALKI Extension Not Detected!\n\nPlease download and install the Chrome extension before connecting your account.");
-                return;
-            }
-
-            const email = document.getElementById("email").value.trim();
+            const email = document.getElementById("email").value.trim().toLowerCase();
             if(!email || !email.includes("@")) {
                 alert("Please enter a valid email address.");
                 return;
             }
-            const btn = document.getElementById("btn-submit");
-            btn.textContent = "Authenticating...";
-            btn.style.opacity = "0.7";
             
-            setTimeout(() => {
-                let accounts = JSON.parse(localStorage.getItem("kalkiAccounts")) || [];
-                // Check if already exists
-                if(!accounts.find(a => a.email === email)) {
-                    accounts.push({email: email});
-                    localStorage.setItem("kalkiAccounts", JSON.stringify(accounts));
-                }
-                
-                // Set default stats if empty
-                if(!localStorage.getItem("kalkiStats")) {
-                    localStorage.setItem("kalkiStats", JSON.stringify({ scans: 432, blocked: 89 }));
-                }
-                
-                window.location.href = "dashboard.html";
-            }, 1000);
+            // Save to localStorage so the dashboard auth gate passes after redirect back
+            let accounts = JSON.parse(localStorage.getItem("kalkiAccounts")) || [];
+            if(!accounts.find(a => a.email === email)) {
+                accounts.push({email: email});
+                localStorage.setItem("kalkiAccounts", JSON.stringify(accounts));
+            }
+            localStorage.setItem("kalkiActiveEmail", email);
+            if(!localStorage.getItem("kalkiStats")) {
+                localStorage.setItem("kalkiStats", JSON.stringify({ scans: 432, blocked: 89 }));
+            }
+            
+            // Redirect to real Google OAuth
+            window.location.href = "http://localhost:5000/auth/google";
         });
         
-        // Allow pressing Enter
         document.getElementById("email").addEventListener("keypress", (e) => {
-            if(e.key === "Enter") {
-                document.getElementById("btn-submit").click();
-            }
+            if(e.key === "Enter") document.getElementById("btn-submit").click();
         });
     </script>
 </body>
