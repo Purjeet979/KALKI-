@@ -187,8 +187,9 @@ document.addEventListener("DOMContentLoaded", () => {
 
   function scanResultHasInsights(explanations) {
     if (!explanations || explanations.length === 0) return false;
-    // Filter out standard fallback message
-    if (explanations.length === 1 && explanations[0].includes("match standard profiles")) return false;
+    // Filter out standard fallback message safely (explanations[0] can be object or string)
+    const firstVal = typeof explanations[0] === 'string' ? explanations[0] : (explanations[0].value || "");
+    if (explanations.length === 1 && firstVal.toLowerCase().includes("match standard")) return false;
     return true;
   }
 
