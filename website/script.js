@@ -55,4 +55,34 @@ document.addEventListener('DOMContentLoaded', () => {
             scoreFill.style.width = newWidth + '%';
         }, 2000);
     }
+
+    // 4. Theme Toggle Functionality
+    const themeToggle = document.getElementById("theme-toggle");
+    const sunIcon = document.getElementById("theme-icon-sun");
+    const moonIcon = document.getElementById("theme-icon-moon");
+
+    if (themeToggle) {
+        const updateIcons = (theme) => {
+            if (theme === "light") {
+                if (sunIcon) sunIcon.style.display = "block";
+                if (moonIcon) moonIcon.style.display = "none";
+            } else {
+                if (sunIcon) sunIcon.style.display = "none";
+                if (moonIcon) moonIcon.style.display = "block";
+            }
+        };
+
+        // Initialize icons based on current theme
+        const currentTheme = document.documentElement.getAttribute("data-theme") || "dark";
+        updateIcons(currentTheme);
+
+        themeToggle.addEventListener("click", () => {
+            const activeTheme = document.documentElement.getAttribute("data-theme") || "dark";
+            const newTheme = activeTheme === "dark" ? "light" : "dark";
+            
+            document.documentElement.setAttribute("data-theme", newTheme);
+            localStorage.setItem("kalkiTheme", newTheme);
+            updateIcons(newTheme);
+        });
+    }
 });
