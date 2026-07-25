@@ -236,7 +236,7 @@ document.addEventListener("DOMContentLoaded", () => {
         localStorage.setItem("kalkiActiveEmail", activeProfileEmail);
         exposeActiveProfileToExtension();
 
-        window.open("http://localhost:5000/auth/google", "_blank");
+        window.open("https://kalki-j5z4.onrender.com/auth/google", "_blank");
         modal.style.display = "none";
     });
 

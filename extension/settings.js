@@ -62,7 +62,7 @@ document.addEventListener("DOMContentLoaded", () => {
       enableAutoScan: chkAutoScan.checked,
       enableFloatingBadge: chkFloatingBadge.checked,
       enableNotifications: chkNotifications.checked,
-      backendUrl: txtBackendUrl.value.trim() || "http://localhost:5000"
+      backendUrl: txtBackendUrl.value.trim() || "https://kalki-j5z4.onrender.com"
     };
 
     saveSettings(updatedSettings).then(() => {

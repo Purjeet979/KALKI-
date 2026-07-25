@@ -8,7 +8,7 @@ const DEFAULT_SETTINGS = {
   enableFloatingBadge: true,
   enableAutoScan: true,
   darkTheme: true,
-  backendUrl: "http://localhost:5000"
+  backendUrl: "https://kalki-j5z4.onrender.com"
 };
 
 /**
@@ -73,8 +73,8 @@ function getSettings() {
     chrome.storage.local.get("settings", (data) => {
       if (data && data.settings) {
         let merged = { ...DEFAULT_SETTINGS, ...data.settings };
-        if (merged.backendUrl === "http://127.0.0.1:5000") {
-            merged.backendUrl = "http://localhost:5000";
+        if (merged.backendUrl === "http://127.0.0.1:5000" || merged.backendUrl === "http://localhost:5000") {
+            merged.backendUrl = "https://kalki-j5z4.onrender.com";
         }
         resolve(merged);
       } else {
