@@ -8,6 +8,8 @@ from datetime import datetime, timezone
 from flask import Flask, request, jsonify, session, redirect, url_for
 from flask_cors import CORS
 import joblib
+import firebase_admin
+from firebase_admin import credentials, firestore
 
 try:
     from google_auth_oauthlib.flow import Flow
@@ -65,6 +67,42 @@ def load_models():
 
 # Load models at startup
 load_models()
+
+# Initialize Firebase Admin
+FIREBASE_KEY_PATH = os.path.join(os.path.dirname(__file__), "serviceAccountKey.json")
+db = None
+
+if os.path.exists(FIREBASE_KEY_PATH):
+    try:
+        cred = credentials.Certificate(FIREBASE_KEY_PATH)
+        firebase_admin.initialize_app(cred)
+        db = firestore.client()
+        logger.info("Successfully initialized Firebase Admin SDK.")
+    except Exception as e:
+        logger.error(f"Error initializing Firebase Admin: {str(e)}")
+else:
+    logger.warning(f"Firebase Service Account Key not found at '{FIREBASE_KEY_PATH}'. Data will NOT be pushed to Cloud Firestore.")
+
+def log_threat_to_firebase(prediction_data, scan_type="url"):
+    """Pushes a scanned threat to Firebase Firestore if configured."""
+    if db is None:
+        return
+        
+    try:
+        threat_doc = {
+            "type": scan_type,
+            "subject": prediction_data.get("subject", "Scanned URL/Email"),
+            "snippet": prediction_data.get("snippet", ""),
+            "prediction": prediction_data.get("prediction", "UNKNOWN"),
+            "risk_score": prediction_data.get("risk_score", 0),
+            "confidence": prediction_data.get("confidence", 0),
+            "heuristics": prediction_data.get("explanation", []),
+            "timestamp": firestore.SERVER_TIMESTAMP
+        }
+        db.collection("threats").add(threat_doc)
+        logger.info(f"Logged {prediction_data['prediction']} threat to Firebase.")
+    except Exception as e:
+        logger.error(f"Failed to log threat to Firebase: {str(e)}")
 
 def check_domain_age(domain):
     """Fetches domain registration date using free RDAP and returns age in days."""
@@ -239,12 +277,20 @@ def predict_url():
             risk_score = 2.0
             confidence = 98.0
 
-        return jsonify({
+        response_data = {
             "prediction": prediction_label,
             "confidence": confidence,
             "risk_score": risk_score,
             "explanation": explanation
-        })
+        }
+        
+        # Log to Firebase
+        firebase_log_data = response_data.copy()
+        firebase_log_data["subject"] = "Scanned URL"
+        firebase_log_data["snippet"] = url
+        log_threat_to_firebase(firebase_log_data, scan_type="url")
+        
+        return jsonify(response_data)
     except Exception as e:
         logger.error(f"Inference error: {str(e)}")
         return jsonify({"error": str(e)}), 500
@@ -301,12 +347,20 @@ def predict_email():
             risk_score = 4.0
             confidence = 96.0
 
-        return jsonify({
+        response_data = {
             "prediction": prediction_label,
             "confidence": confidence,
             "risk_score": risk_score,
             "explanation": explanation
-        })
+        }
+        
+        # Log to Firebase
+        firebase_log_data = response_data.copy()
+        firebase_log_data["subject"] = "Scanned Email Content"
+        firebase_log_data["snippet"] = text[:150] + ("..." if len(text) > 150 else "")
+        log_threat_to_firebase(firebase_log_data, scan_type="email")
+        
+        return jsonify(response_data)
     except Exception as e:
         logger.error(f"Inference error: {str(e)}")
         return jsonify({"error": str(e)}), 500

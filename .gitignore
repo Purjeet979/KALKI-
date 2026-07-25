@@ -2,3 +2,6 @@ __pycache__/
 *.pyc
 .env
 website/kalki-extension.zip
+backend/serviceAccountKey.json
+backend/client_secret.json
+firebase-debug.log

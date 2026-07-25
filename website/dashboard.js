@@ -1,3 +1,6 @@
+import { db } from "./firebase_config.js";
+import { collection, query, orderBy, limit, onSnapshot } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+
 document.addEventListener("DOMContentLoaded", () => {
     const modal = document.getElementById("auth-modal");
     const btnConnect = document.getElementById("btn-connect");
@@ -23,26 +26,57 @@ document.addEventListener("DOMContentLoaded", () => {
 
     let stats = JSON.parse(localStorage.getItem("kalkiStats")) || { scans: 432, blocked: 89 };
 
-    async function fetchThreatsFromBackend() {
-        try {
-            // Fetch real data from the Flask API endpoint
-            const response = await fetch("http://127.0.0.1:5000/api/threats");
-            if (!response.ok) throw new Error("Network response was not ok");
-            const data = await response.json();
-            return data;
-        } catch (error) {
-            console.error("Failed to fetch threats from backend:", error);
-            // Fallback mock data just in case the backend is down
-            return [
-                {
-                    subject: "API Offline: Could not fetch recent threats",
-                    snippet: "Please ensure the KALKI Flask backend is running on port 5000.",
-                    risk: "LOW",
-                    prediction: "SAFE",
-                    heuristics: []
+    let unsubscribeFeed = null;
+    
+    function subscribeToFirebaseThreats() {
+        if (accounts.length === 0) return;
+        
+        feedList.innerHTML = `<div style="text-align:center; padding: 20px; color: #00ffcc;">Syncing with KALKI Firebase Core...</div>`;
+        
+        const q = query(collection(db, "threats"), orderBy("timestamp", "desc"), limit(25));
+        
+        unsubscribeFeed = onSnapshot(q, (snapshot) => {
+            let allThreatsHtml = "";
+            
+            if (snapshot.empty) {
+                feedList.innerHTML = `<div style="text-align:center; padding: 40px; color: #8892b0;">No threats logged yet in Firebase. Scan a URL with the KALKI Extension!</div>`;
+                return;
+            }
+            
+            snapshot.forEach((doc) => {
+                const threat = doc.data();
+                const isPhishing = threat.prediction.includes("PHISHING") || threat.prediction.includes("Phishing");
+                
+                let badgesHtml = "";
+                if (threat.heuristics) {
+                    threat.heuristics.forEach(h => {
+                        const weightClass = h.weight; 
+                        badgesHtml += `<span class="heuristic-badge ${weightClass}">[${h.weight.toUpperCase()}] ${h.factor}: ${h.value}</span>`;
+                    });
                 }
-            ];
-        }
+                
+                allThreatsHtml += `
+                    <div class="threat-item ${isPhishing ? '' : 'safe'}">
+                        <div class="threat-top">
+                            <span><strong>Target:</strong> Global Stream</span>
+                            <span style="color:#00ffcc; font-weight:bold;">● LIVE (Firebase)</span>
+                        </div>
+                        <div class="threat-title">${threat.subject}</div>
+                        <div class="threat-snippet">"${threat.snippet}"</div>
+                        <div style="margin-bottom: 12px; font-weight:700; font-size:12px; color: ${isPhishing ? '#ff0055' : '#00ffcc'}">
+                            STATUS: ${threat.prediction} (Risk Score: ${threat.risk_score}%)
+                        </div>
+                        <div class="heuristics-list">
+                            ${badgesHtml}
+                        </div>
+                    </div>
+                `;
+            });
+            feedList.innerHTML = allThreatsHtml;
+        }, (error) => {
+            console.error("Firebase listen error:", error);
+            feedList.innerHTML = `<div style="text-align:center; padding: 40px; color: #ff0055;">Database Error: ${error.message}</div>`;
+        });
     }
 
     async function renderDashboard() {
@@ -80,43 +114,10 @@ document.addEventListener("DOMContentLoaded", () => {
 
         feedList.innerHTML = `<div style="text-align:center; padding: 20px; color: #00ffcc;">Syncing with KALKI AI Core...</div>`;
         
-        // Fetch data from python backend
-        const threatsData = await fetchThreatsFromBackend();
-        
-        let allThreatsHtml = "";
-        
-        accounts.forEach(acc => {
-            threatsData.forEach(threat => {
-                const isPhishing = threat.prediction.includes("PHISHING");
-                
-                let badgesHtml = "";
-                if (threat.heuristics) {
-                    threat.heuristics.forEach(h => {
-                        const weightClass = h.weight; 
-                        badgesHtml += `<span class="heuristic-badge ${weightClass}">[${h.weight.toUpperCase()}] ${h.factor}: ${h.value}</span>`;
-                    });
-                }
-
-                allThreatsHtml += `
-                    <div class="threat-item ${isPhishing ? '' : 'safe'}">
-                        <div class="threat-top">
-                            <span><strong>Target:</strong> ${acc.email}</span>
-                            <span>Live Sync</span>
-                        </div>
-                        <div class="threat-title">${threat.subject}</div>
-                        <div class="threat-snippet">"${threat.snippet}"</div>
-                        <div style="margin-bottom: 12px; font-weight:700; font-size:12px; color: ${isPhishing ? '#ff0055' : '#00ffcc'}">
-                            STATUS: ${threat.prediction}
-                        </div>
-                        <div class="heuristics-list">
-                            ${badgesHtml}
-                        </div>
-                    </div>
-                `;
-            });
-        });
-
-        feedList.innerHTML = allThreatsHtml;
+        // Start live Firebase listener
+        if (!unsubscribeFeed) {
+            subscribeToFirebaseThreats();
+        }
     }
 
     // Modal logic
