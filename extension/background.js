@@ -155,6 +155,12 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     const tabId = message.tabId || (sender.tab ? sender.tab.id : null);
     sendResponse({ result: tabScanStates[tabId] || null });
   }
+  
+  else if (message.action === "sync_accounts") {
+    chrome.storage.local.set({ activeEmail: message.email }, () => {
+      console.log("Synced active email:", message.email);
+    });
+  }
 });
 
 /**
@@ -163,12 +169,15 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 async function performUrlScan(url, tabId = null) {
   const settings = await getSettings();
   const apiEndpoint = `${settings.backendUrl}/predict-url`;
+  
+  const storageData = await chrome.storage.local.get("activeEmail");
+  const email = storageData.activeEmail || null;
 
   try {
     const response = await fetch(apiEndpoint, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ url: url })
+      body: JSON.stringify({ url: url, email: email })
     });
 
     if (!response.ok) {
@@ -186,6 +195,7 @@ async function performUrlScan(url, tabId = null) {
       confidence: result.confidence,
       riskScore: result.risk_score,
       explanation: result.explanation,
+      user_email: result.user_email || email,
       timestamp: Date.now()
     };
 
@@ -224,12 +234,15 @@ async function performUrlScan(url, tabId = null) {
 async function performEmailScan(text) {
   const settings = await getSettings();
   const apiEndpoint = `${settings.backendUrl}/predict-email`;
+  
+  const storageData = await chrome.storage.local.get("activeEmail");
+  const email = storageData.activeEmail || null;
 
   try {
     const response = await fetch(apiEndpoint, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ text: text })
+      body: JSON.stringify({ text: text, email: email })
     });
 
     if (!response.ok) {
@@ -246,6 +259,7 @@ async function performEmailScan(text) {
       confidence: result.confidence,
       riskScore: result.risk_score,
       explanation: result.explanation,
+      user_email: result.user_email || email,
       timestamp: Date.now()
     };
 
