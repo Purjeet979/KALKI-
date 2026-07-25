@@ -161,6 +161,16 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       console.log("Synced active email:", message.email);
     });
   }
+  
+  else if (message.action === "scan_gmail") {
+    performEmailScan(message.text)
+      .then(result => sendResponse({ result }))
+      .catch(err => {
+        console.error("Gmail background scan failed:", err);
+        sendResponse({ error: err.message });
+      });
+    return true; // Keep channel open for async response
+  }
 });
 
 /**

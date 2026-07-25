@@ -473,13 +473,93 @@ function syncAccountsToExtension() {
   observer.observe(targetNode, { childList: true, subtree: true });
 }
 
+// ==========================================
+// Gmail Real-Time Detection Module
+// ==========================================
+function initGmailScanner() {
+  if (window.location.hostname !== "mail.google.com") return;
+  console.log("KALKI: Gmail Real-Time Scanner Active");
+
+  const observer = new MutationObserver((mutations) => {
+    // Gmail email bodies typically use the class '.a3s.aiL'
+    const emailBodies = document.querySelectorAll('.a3s.aiL:not([data-kalki-scanned="true"])');
+    
+    emailBodies.forEach((bodyNode) => {
+      // Mark as scanned immediately to prevent duplicate API calls
+      bodyNode.setAttribute("data-kalki-scanned", "true");
+      
+      const emailText = bodyNode.innerText || bodyNode.textContent;
+      if (!emailText || emailText.trim().length < 20) return;
+
+      console.log("KALKI: New email opened, extracting content for analysis...");
+
+      // Send to background for ML prediction
+      chrome.runtime.sendMessage(
+        { action: "scan_gmail", text: emailText.substring(0, 2000) }, // Limit size for API
+        (response) => {
+          if (response && response.result) {
+            injectGmailBanner(bodyNode, response.result);
+          }
+        }
+      );
+    });
+  });
+
+  observer.observe(document.body, { childList: true, subtree: true });
+}
+
+function injectGmailBanner(emailBodyNode, scanResult) {
+  // Only inject if it's phishing
+  if (scanResult.prediction !== "Phishing") return;
+
+  const banner = document.createElement("div");
+  banner.style.backgroundColor = "#ff005522";
+  banner.style.border = "2px solid #ff0055";
+  banner.style.color = "#ff0055";
+  banner.style.padding = "12px 16px";
+  banner.style.margin = "10px 0 20px 0";
+  banner.style.borderRadius = "8px";
+  banner.style.fontFamily = "sans-serif";
+  banner.style.fontSize = "14px";
+  banner.style.display = "flex";
+  banner.style.alignItems = "center";
+  banner.style.gap = "12px";
+  banner.style.fontWeight = "bold";
+
+  let heuristicsHtml = "";
+  if (scanResult.explanation && scanResult.explanation.length > 0) {
+    const criticalFlags = scanResult.explanation.filter(e => e.weight === "high" || e.weight === "medium");
+    if (criticalFlags.length > 0) {
+        heuristicsHtml = `<div style="font-size:12px; font-weight:normal; margin-top:6px; color:#ffb3cc;">
+            ${criticalFlags.map(f => `• ${f.factor}: ${f.value}`).join("<br>")}
+        </div>`;
+    }
+  }
+
+  banner.innerHTML = `
+    <div style="font-size:24px;">⚠️</div>
+    <div>
+      <div style="font-size:16px;">KALKI SECURITY ALERT: High-Risk Phishing Detected (ML Confidence: ${scanResult.confidence}%)</div>
+      ${heuristicsHtml}
+    </div>
+  `;
+
+  // Insert banner just before the email body content
+  const parent = emailBodyNode.parentElement;
+  if (parent) {
+    parent.insertBefore(banner, emailBodyNode);
+  }
+}
+
 // Kick off initialization
 if (document.readyState === "complete" || document.readyState === "interactive") {
   init();
   syncAccountsToExtension();
+  initGmailScanner();
 } else {
   document.addEventListener("DOMContentLoaded", () => {
     init();
     syncAccountsToExtension();
+    initGmailScanner();
   });
 }
